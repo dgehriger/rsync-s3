@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     # Authentication settings
     auth_username: str = "admin"
     auth_password: str = "changeme"
+    auth_mode: str = "basic"  # "basic", "cloudflare", or "none"
 
     # Logging
     log_level: str = "INFO"

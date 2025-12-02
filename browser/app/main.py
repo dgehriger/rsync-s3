@@ -44,14 +44,46 @@ app = FastAPI(
 )
 
 # Security
-security = HTTPBasic()
+security = HTTPBasic(auto_error=False)
 
 
-def verify_credentials(
-    credentials: HTTPBasicCredentials = Depends(security),
+def get_current_user(
+    request: Request,
+    credentials: Optional[HTTPBasicCredentials] = Depends(security),
     settings: Settings = Depends(get_settings),
 ) -> str:
-    """Verify HTTP Basic Auth credentials."""
+    """
+    Verify authentication based on auth_mode setting.
+    
+    Modes:
+    - "basic": HTTP Basic Auth (default)
+    - "cloudflare": Trust Cloudflare Access headers (Cf-Access-Authenticated-User-Email)
+    - "none": No authentication (not recommended)
+    """
+    if settings.auth_mode == "none":
+        return "anonymous"
+    
+    if settings.auth_mode == "cloudflare":
+        # Cloudflare Access sets these headers after authentication
+        cf_email = request.headers.get("Cf-Access-Authenticated-User-Email")
+        if cf_email:
+            return cf_email
+        # Fallback: check if request came through Cloudflare
+        cf_connecting_ip = request.headers.get("Cf-Connecting-Ip")
+        if not cf_connecting_ip:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Request must come through Cloudflare Access",
+            )
+        return "cloudflare-user"
+    
+    # Default: basic auth
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Basic"},
+        )
     correct_username = secrets.compare_digest(
         credentials.username.encode("utf8"),
         settings.auth_username.encode("utf8"),
@@ -106,7 +138,7 @@ templates.env.globals["format_size"] = format_size
 
 # API Endpoints
 @app.get("/", response_class=HTMLResponse)
-async def root(request: Request, username: str = Depends(verify_credentials)):
+async def root(request: Request, username: str = Depends(get_current_user)):
     """Redirect to buckets page."""
     return templates.TemplateResponse(
         "redirect.html",
@@ -117,7 +149,7 @@ async def root(request: Request, username: str = Depends(verify_credentials)):
 @app.get("/buckets", response_class=HTMLResponse)
 async def list_buckets_page(
     request: Request,
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
 ):
     """List all buckets page."""
@@ -142,7 +174,7 @@ async def list_objects_page(
     request: Request,
     bucket: str,
     prefix: str = Query("", description="Object prefix"),
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
 ):
     """List objects in a bucket page."""
@@ -173,7 +205,7 @@ async def download_object(
     path: str,
     version: str = Query("current", description="Version ID or 'current'"),
     snapshot: Optional[str] = Query(None, description="Snapshot name for download"),
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
     sftp_client: SFTPClient = Depends(get_sftp_client),
 ):
@@ -236,7 +268,7 @@ async def object_detail_page(
     request: Request,
     bucket: str,
     path: str,
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
     version_mapper: VersionMapper = Depends(get_version_mapper),
 ):
@@ -281,7 +313,7 @@ async def object_detail_page(
 # JSON API Endpoints
 @app.get("/api/buckets")
 async def api_list_buckets(
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
 ):
     """JSON API: List all buckets."""
@@ -297,7 +329,7 @@ async def api_list_buckets(
 async def api_list_objects(
     bucket: str,
     prefix: str = Query("", description="Object prefix"),
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
 ):
     """JSON API: List objects in a bucket."""
@@ -313,7 +345,7 @@ async def api_list_objects(
 async def api_object_versions(
     bucket: str,
     path: str,
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     version_mapper: VersionMapper = Depends(get_version_mapper),
 ):
     """JSON API: List object versions."""
@@ -329,7 +361,7 @@ async def api_object_versions(
 async def api_object_detail(
     bucket: str,
     path: str,
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
 ):
     """JSON API: Get object metadata."""
@@ -347,7 +379,7 @@ async def api_object_detail(
 
 @app.get("/api/snapshots")
 async def api_list_snapshots(
-    username: str = Depends(verify_credentials),
+    username: str = Depends(get_current_user),
     sftp_client: SFTPClient = Depends(get_sftp_client),
 ):
     """JSON API: List available ZFS snapshots."""

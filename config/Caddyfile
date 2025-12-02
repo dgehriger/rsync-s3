@@ -1,0 +1,19 @@
+# S3 Gateway - HTTPS with Cloudflare DNS challenge
+# No ports 80/443 needed - uses DNS-01 challenge
+{
+    https_port 8443
+    http_port 8080
+}
+
+{$S3_DOMAIN:s3.example.com}:8443 {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    
+    reverse_proxy s3-gateway:9000
+    
+    # No body size limit for large uploads
+    request_body {
+        max_size 0
+    }
+}
