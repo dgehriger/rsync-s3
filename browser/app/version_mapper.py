@@ -66,14 +66,14 @@ class VersionMapper:
         """
         List all unique versions of an object, including current and snapshots.
         
-        Filters out duplicate versions (same size and mtime) and assigns
-        sequential version IDs (v1, v2, ...) from oldest to newest.
+        Strategy:
+        - Current (live) version is always shown if it exists
+        - Snapshots are shown only when they represent a DIFFERENT version
+        - If current matches snapshots, we show "live" as the source (not a snapshot)
+        - Historical versions show the OLDEST snapshot that has that version
 
-        Returns versions sorted by timestamp ascending (oldest first), 
-        with current version last if it differs.
+        Returns versions sorted newest first, with sequential IDs (v1 = oldest).
         """
-        versions: list[VersionInfo] = []
-
         # Get current version from S3
         current_task = asyncio.create_task(
             self._get_current_version(bucket, key)
@@ -98,31 +98,42 @@ class VersionMapper:
         snapshot_results = await asyncio.gather(*snapshot_tasks)
         snapshot_versions = [v for v in snapshot_results if v]
 
-        # Sort snapshots by timestamp ascending (oldest first)
+        # Sort snapshots by file mtime ascending (oldest file version first)
         snapshot_versions.sort(
             key=lambda v: (
                 v.modified_time or datetime.min.replace(tzinfo=timezone.utc),
             ),
         )
 
-        # Filter out duplicates - keep only versions where size or mtime changed
+        # Build unique versions list
+        # Key insight: if current exists, we want to show it as "live" 
+        # and only show snapshots that have DIFFERENT content
         unique_versions: list[VersionInfo] = []
-        last_size: Optional[int] = None
-        last_mtime: Optional[datetime] = None
-
-        for version in snapshot_versions:
-            # Check if this version differs from the previous one
-            if version.size != last_size or version.modified_time != last_mtime:
-                unique_versions.append(version)
-                last_size = version.size
-                last_mtime = version.modified_time
-
-        # Check if current version differs from the last snapshot
+        seen_signatures: set[tuple[int, Optional[datetime]]] = set()
+        
+        # First, determine current version's signature
+        current_signature: Optional[tuple[int, Optional[datetime]]] = None
         if current_version:
-            if (not unique_versions or 
-                current_version.size != last_size or 
-                current_version.modified_time != last_mtime):
-                unique_versions.append(current_version)
+            current_signature = (current_version.size, current_version.modified_time)
+
+        # Process snapshots oldest-first, keeping first occurrence of each unique version
+        for version in snapshot_versions:
+            signature = (version.size, version.modified_time)
+            
+            # Skip if we've seen this version before
+            if signature in seen_signatures:
+                continue
+                
+            # Skip if this matches current (we'll show current as "live" instead)
+            if signature == current_signature:
+                continue
+                
+            seen_signatures.add(signature)
+            unique_versions.append(version)
+
+        # Add current version last (it's the newest)
+        if current_version:
+            unique_versions.append(current_version)
 
         # Assign sequential version IDs (v1, v2, ...) from oldest to newest
         for i, version in enumerate(unique_versions, start=1):
