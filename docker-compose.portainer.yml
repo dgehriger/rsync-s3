@@ -38,16 +38,13 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
-    configs:
-      - source: caddyfile
-        target: /etc/caddy/Caddyfile
     depends_on:
       - s3-gateway
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 32M
+          memory: 64M
     networks:
       - rsync-net
 
@@ -82,23 +79,6 @@ services:
           memory: 128M
     networks:
       - rsync-net
-
-configs:
-  caddyfile:
-    content: |
-      {
-          https_port 8443
-          http_port 8080
-      }
-      ${S3_DOMAIN}:8443 {
-          tls {
-              dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-          }
-          reverse_proxy s3-gateway:9000
-          request_body {
-              max_size 0
-          }
-      }
 
 networks:
   rsync-net:

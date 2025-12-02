@@ -1,0 +1,16 @@
+{
+    https_port 8443
+    http_port 8080
+}
+
+{$S3_DOMAIN}:8443 {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    
+    reverse_proxy s3-gateway:9000
+    
+    request_body {
+        max_size 0
+    }
+}
