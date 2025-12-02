@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}{{ bucket }} - Rsync.net S3 Browser{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+    {% for crumb in breadcrumbs %}
+        {% if loop.last %}
+            <span class="current">{{ crumb.name }}</span>
+        {% else %}
+            <a href="{{ crumb.url }}">{{ crumb.name }}</a>
+            <span>/</span>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h1 class="card-title">
+            {% if prefix %}
+                📁 {{ prefix.rstrip('/').split('/')[-1] }}
+            {% else %}
+                🗄️ {{ bucket }}
+            {% endif %}
+        </h1>
+        <span class="text-muted">{{ folders|length }} folder(s), {{ files|length }} file(s)</span>
+    </div>
+
+    {% if folders or files %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Size</th>
+                <th>Last Modified</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for folder in folders %}
+            <tr>
+                <td>
+                    <span class="icon folder-icon"></span>
+                    <a href="/b/{{ bucket }}?prefix={{ folder.prefix }}">{{ folder.name }}/</a>
+                </td>
+                <td class="text-muted">-</td>
+                <td class="text-muted">-</td>
+                <td class="text-right">
+                    <a href="/b/{{ bucket }}?prefix={{ folder.prefix }}" class="btn btn-secondary">Open</a>
+                </td>
+            </tr>
+            {% endfor %}
+            {% for file in files %}
+            <tr>
+                <td>
+                    <span class="icon file-icon"></span>
+                    <a href="/b/{{ bucket }}/o/{{ file.key }}">{{ file.name }}</a>
+                </td>
+                <td class="text-muted">{{ format_size(file.size) }}</td>
+                <td class="text-muted">
+                    {% if file.last_modified %}
+                        {{ file.last_modified.strftime('%Y-%m-%d %H:%M:%S') }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td class="text-right">
+                    <a href="/b/{{ bucket }}/o/{{ file.key }}" class="btn btn-secondary">Details</a>
+                    <a href="/b/{{ bucket }}/o/{{ file.key }}/download" class="btn btn-primary">Download</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">📂</div>
+        <h3>Empty Folder</h3>
+        <p>This folder doesn't contain any files or subfolders.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

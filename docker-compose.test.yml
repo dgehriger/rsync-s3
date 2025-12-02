@@ -1,0 +1,103 @@
+version: "3.8"
+
+# Test Docker Compose with mock rsync.net server
+# Usage: docker-compose -f docker-compose.test.yml up --build
+
+services:
+  # Mock rsync.net server with simulated ZFS snapshots
+  mock-rsync:
+    build:
+      context: ./tests/mock-rsync
+      dockerfile: Dockerfile
+    container_name: mock-rsync
+    volumes:
+      - ./tests/secrets:/secrets:ro
+    ports:
+      - "2222:22"
+    networks:
+      - test-net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # S3 Gateway - rclone serving mock rsync.net as S3
+  s3-gateway:
+    image: rclone/rclone:latest
+    container_name: test-s3-gateway
+    command: serve s3 rsyncnet:s3root --addr :9000 --auth-key ${S3_ACCESS_KEY:-testkey},${S3_SECRET_KEY:-testsecret}
+    environment:
+      - RCLONE_CONFIG_RSYNCNET_TYPE=sftp
+      - RCLONE_CONFIG_RSYNCNET_HOST=mock-rsync
+      - RCLONE_CONFIG_RSYNCNET_USER=testuser
+      - RCLONE_CONFIG_RSYNCNET_KEY_FILE=/secrets/test_key
+      - RCLONE_CONFIG_RSYNCNET_SHELL_TYPE=unix
+      - RCLONE_CONFIG_RSYNCNET_MD5SUM_COMMAND=none
+      - RCLONE_CONFIG_RSYNCNET_SHA1SUM_COMMAND=none
+    volumes:
+      - ./tests/secrets:/secrets:ro
+    ports:
+      - "9000:9000"
+    depends_on:
+      mock-rsync:
+        condition: service_healthy
+    networks:
+      - test-net
+
+  # Snapshot-Aware Browser
+  browser:
+    build:
+      context: ./browser
+      dockerfile: Dockerfile
+    container_name: test-browser
+    environment:
+      - S3_ENDPOINT=http://s3-gateway:9000
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-testkey}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-testsecret}
+      - RSYNC_HOST=mock-rsync
+      - RSYNC_USER=testuser
+      - SSH_KEY_PATH=/secrets/test_key
+      - SNAPSHOT_DIR=.zfs
+      - S3_ROOT_PREFIX=s3root
+      - AUTH_USERNAME=testadmin
+      - AUTH_PASSWORD=testpass
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./tests/secrets:/secrets:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - s3-gateway
+    networks:
+      - test-net
+
+  # Test runner container
+  test-runner:
+    build:
+      context: ./tests/runner
+      dockerfile: Dockerfile
+    container_name: test-runner
+    environment:
+      - S3_ENDPOINT=http://s3-gateway:9000
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-testkey}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-testsecret}
+      - BROWSER_URL=http://browser:8080
+      - BROWSER_USER=testadmin
+      - BROWSER_PASS=testpass
+      - SFTP_HOST=mock-rsync
+      - SFTP_USER=testuser
+      - SSH_KEY_PATH=/secrets/test_key
+    volumes:
+      - ./tests/integration:/tests/integration:ro
+      - ./tests/conftest_integration.py:/tests/conftest.py:ro
+      - ./tests/secrets:/secrets:ro
+    depends_on:
+      - browser
+      - s3-gateway
+    networks:
+      - test-net
+
+networks:
+  test-net:
+    driver: bridge

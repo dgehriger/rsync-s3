@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Buckets - Rsync.net S3 Browser{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+    <span class="current">Buckets</span>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h1 class="card-title">🗄️ S3 Buckets</h1>
+        <span class="text-muted">{{ buckets|length }} bucket(s)</span>
+    </div>
+
+    {% if buckets %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Created</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for bucket in buckets %}
+            <tr>
+                <td>
+                    <span class="icon bucket-icon"></span>
+                    <a href="/b/{{ bucket.name }}">{{ bucket.name }}</a>
+                </td>
+                <td class="text-muted">
+                    {% if bucket.creation_date %}
+                        {{ bucket.creation_date.strftime('%Y-%m-%d %H:%M:%S') }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td class="text-right">
+                    <a href="/b/{{ bucket.name }}" class="btn btn-secondary">Browse</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">📭</div>
+        <h3>No Buckets Found</h3>
+        <p>Create a directory under ~/s3root on rsync.net to create a bucket.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

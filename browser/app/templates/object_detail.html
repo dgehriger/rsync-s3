@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}{{ key.split('/')[-1] }} - Rsync.net S3 Browser{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+    {% for crumb in breadcrumbs %}
+        {% if crumb.url %}
+            <a href="{{ crumb.url }}">{{ crumb.name }}</a>
+            <span>/</span>
+        {% else %}
+            <span class="current">{{ crumb.name }}</span>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h1 class="card-title">📄 {{ key.split('/')[-1] }}</h1>
+        <a href="/b/{{ bucket }}/o/{{ key }}/download" class="btn btn-primary">⬇️ Download Current</a>
+    </div>
+
+    <div class="metadata-grid">
+        <div class="metadata-item">
+            <div class="metadata-label">S3 URI</div>
+            <div class="metadata-value"><code>s3://{{ bucket }}/{{ key }}</code></div>
+        </div>
+        <div class="metadata-item">
+            <div class="metadata-label">Size</div>
+            <div class="metadata-value">{{ format_size(metadata.size) }}</div>
+        </div>
+        <div class="metadata-item">
+            <div class="metadata-label">Last Modified</div>
+            <div class="metadata-value">
+                {% if metadata.last_modified %}
+                    {{ metadata.last_modified.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+                {% else %}
+                    -
+                {% endif %}
+            </div>
+        </div>
+        <div class="metadata-item">
+            <div class="metadata-label">Content Type</div>
+            <div class="metadata-value">{{ metadata.content_type }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">📚 Version History</h2>
+        <span class="text-muted">{{ versions|length }} version(s)</span>
+    </div>
+
+    <p style="margin-bottom: 15px; color: var(--text-muted);">
+        Versions are collected from ZFS snapshots on rsync.net. Each snapshot represents 
+        a point-in-time copy of your data.
+    </p>
+
+    {% if versions %}
+    <table>
+        <thead>
+            <tr>
+                <th>Version</th>
+                <th>Source</th>
+                <th>Size</th>
+                <th>Modified</th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for version in versions %}
+            <tr>
+                <td>
+                    <strong>{{ version.version_id }}</strong>
+                </td>
+                <td>
+                    {% if version.source == 'current' %}
+                        <span class="badge badge-current">S3 Live</span>
+                    {% else %}
+                        <span class="badge badge-snapshot">{{ version.snapshot_name }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ format_size(version.size) }}</td>
+                <td class="text-muted">
+                    {% if version.modified_time %}
+                        {{ version.modified_time }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td class="text-right">
+                    {% if version.is_current %}
+                    <a href="/b/{{ bucket }}/o/{{ key }}/download" 
+                       class="btn btn-primary">
+                        ⬇️ Download
+                    </a>
+                    {% else %}
+                    <a href="/b/{{ bucket }}/o/{{ key }}/download?snapshot={{ version.snapshot_name }}" 
+                       class="btn btn-secondary">
+                        ⬇️ Download
+                    </a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon">📭</div>
+        <h3>No Version History</h3>
+        <p>No historical versions found in ZFS snapshots.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+    code {
+        background-color: var(--bg-color);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+        font-size: 0.85rem;
+    }
+</style>
+{% endblock %}

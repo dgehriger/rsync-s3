@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  # S3 Gateway - rclone serving rsync.net via SFTP as S3
+  s3-gateway:
+    image: rclone/rclone:latest
+    container_name: rsync-s3-gateway
+    command: ["serve", "s3", "rsyncnet:", "--addr", ":9000", "--auth-key", "${S3_ACCESS_KEY},${S3_SECRET_KEY}"]
+    environment:
+      - RCLONE_CONFIG_RSYNCNET_TYPE=sftp
+      - RCLONE_CONFIG_RSYNCNET_HOST=${RSYNC_HOST}
+      - RCLONE_CONFIG_RSYNCNET_USER=${RSYNC_USER}
+      - RCLONE_CONFIG_RSYNCNET_KEY_FILE=/secrets/rsync_id_ed25519
+      - RCLONE_CONFIG_RSYNCNET_SHELL_TYPE=unix
+      - RCLONE_CONFIG_RSYNCNET_MD5SUM_COMMAND=none
+      - RCLONE_CONFIG_RSYNCNET_SHA1SUM_COMMAND=none
+    volumes:
+      - ./secrets/rsync_id_ed25519:/secrets/rsync_id_ed25519:ro
+    ports:
+      - "9000:9000"
+    restart: unless-stopped
+    networks:
+      - rsync-net
+
+  # Snapshot-Aware Browser - FastAPI application
+  browser:
+    build:
+      context: ./browser
+      dockerfile: Dockerfile
+    container_name: rsync-s3-browser
+    environment:
+      - S3_ENDPOINT=http://s3-gateway:9000
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - RSYNC_HOST=${RSYNC_HOST}
+      - RSYNC_USER=${RSYNC_USER}
+      - SSH_KEY_PATH=/secrets/rsync_id_ed25519
+      - SNAPSHOT_DIR=${SNAPSHOT_DIR:-.zfs/snapshot}
+      - S3_ROOT_PREFIX=${S3_ROOT_PREFIX:-s3root}
+      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-changeme}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./secrets/rsync_id_ed25519:/secrets/rsync_id_ed25519:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - s3-gateway
+    restart: unless-stopped
+    networks:
+      - rsync-net
+
+networks:
+  rsync-net:
+    driver: bridge
