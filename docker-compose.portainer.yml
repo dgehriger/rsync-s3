@@ -1,0 +1,109 @@
+services:
+  # S3 Gateway - rclone serving rsync.net via SFTP as S3
+  s3-gateway:
+    image: rclone/rclone:latest
+    container_name: rsync-s3-gateway
+    environment:
+      - RCLONE_CONFIG_RSYNCNET_TYPE=sftp
+      - RCLONE_CONFIG_RSYNCNET_HOST=${RSYNC_HOST}
+      - RCLONE_CONFIG_RSYNCNET_USER=${RSYNC_USER}
+      - RCLONE_CONFIG_RSYNCNET_KEY_FILE=/secrets/rsync_id_ed25519
+      - RCLONE_CONFIG_RSYNCNET_KEY_FILE_PASS=
+      - RCLONE_CONFIG_RSYNCNET_SHELL_TYPE=unix
+      - RCLONE_CONFIG_RSYNCNET_MD5SUM_COMMAND=none
+      - RCLONE_CONFIG_RSYNCNET_SHA1SUM_COMMAND=none
+      - SSH_PRIVATE_KEY_B64=${SSH_PRIVATE_KEY_B64}
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /secrets && echo \"$SSH_PRIVATE_KEY_B64\" | base64 -d > /secrets/rsync_id_ed25519 && chmod 600 /secrets/rsync_id_ed25519 && rclone serve s3 rsyncnet: --addr :9000 --auth-key ${S3_ACCESS_KEY},${S3_SECRET_KEY}"]
+    expose:
+      - "9000"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    networks:
+      - rsync-net
+
+  # Caddy - Automatic HTTPS proxy for S3 gateway (Cloudflare DNS challenge)
+  caddy:
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile
+    container_name: rsync-s3-caddy
+    environment:
+      - S3_DOMAIN=${S3_DOMAIN:-s3.example.com}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    ports:
+      - "8443:8443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    depends_on:
+      - s3-gateway
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+    networks:
+      - rsync-net
+
+  # Snapshot-Aware Browser - FastAPI application
+  browser:
+    build:
+      context: ./browser
+      dockerfile: Dockerfile
+    container_name: rsync-s3-browser
+    environment:
+      - S3_ENDPOINT=http://s3-gateway:9000
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - RSYNC_HOST=${RSYNC_HOST}
+      - RSYNC_USER=${RSYNC_USER}
+      - SSH_KEY_PATH=/secrets/rsync_id_ed25519
+      - SSH_PRIVATE_KEY_B64=${SSH_PRIVATE_KEY_B64}
+      - SNAPSHOT_DIR=${SNAPSHOT_DIR:-.zfs/snapshot}
+      - S3_ROOT_PREFIX=${S3_ROOT_PREFIX:-.}
+      - AUTH_MODE=${AUTH_MODE:-cloudflare}
+      - AUTH_USERNAME=${AUTH_USERNAME:-admin}
+      - AUTH_PASSWORD=${AUTH_PASSWORD:-changeme}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      - s3-gateway
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks:
+      - rsync-net
+
+configs:
+  caddyfile:
+    content: |
+      {
+          https_port 8443
+          http_port 8080
+      }
+      ${S3_DOMAIN}:8443 {
+          tls {
+              dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+          }
+          reverse_proxy s3-gateway:9000
+          request_body {
+              max_size 0
+          }
+      }
+
+networks:
+  rsync-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
