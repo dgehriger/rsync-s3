@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Rsync.net S3 Gateway Browser",
     description="Snapshot-aware browser for rsync.net S3 storage",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
