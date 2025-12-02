@@ -23,7 +23,7 @@
     <div class="metadata-grid">
         <div class="metadata-item">
             <div class="metadata-label">S3 URI</div>
-            <div class="metadata-value"><code>s3://{{ bucket }}/{{ key }}</code></div>
+            <div class="metadata-value"><code>{% if s3_public_endpoint %}--endpoint-url={{ s3_public_endpoint }} {% endif %}s3://{{ bucket }}/{{ key }}</code></div>
         </div>
         <div class="metadata-item">
             <div class="metadata-label">Size</div>

@@ -52,6 +52,7 @@ services:
     container_name: rsync-s3-browser
     environment:
       - S3_ENDPOINT=http://s3-gateway:9000
+      - S3_PUBLIC_ENDPOINT=${S3_PUBLIC_ENDPOINT:-}
       - S3_ACCESS_KEY=${S3_ACCESS_KEY}
       - S3_SECRET_KEY=${S3_SECRET_KEY}
       - RSYNC_HOST=${RSYNC_HOST}

@@ -271,6 +271,7 @@ async def object_detail_page(
     username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
     version_mapper: VersionMapper = Depends(get_version_mapper),
+    settings: Settings = Depends(get_settings),
 ):
     """Object detail page with version history."""
     try:
@@ -301,6 +302,7 @@ async def object_detail_page(
                 "versions": [v.to_dict() for v in versions],
                 "breadcrumbs": breadcrumbs,
                 "username": username,
+                "s3_public_endpoint": settings.s3_public_endpoint,
             },
         )
     except HTTPException:

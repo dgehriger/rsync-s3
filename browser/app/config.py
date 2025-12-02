@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     # S3 Gateway settings
     s3_endpoint: str = "http://s3-gateway:9000"
+    s3_public_endpoint: str = ""  # Public S3 endpoint URL for display (e.g., https://s3.example.com:8443)
     s3_access_key: str = ""
     s3_secret_key: str = ""
 
