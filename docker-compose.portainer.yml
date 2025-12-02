@@ -48,7 +48,7 @@ services:
 
   # Snapshot-Aware Browser - FastAPI application
   browser:
-    image: ghcr.io/dgehriger/rsync-s3/browser:29c2da2
+    image: ghcr.io/dgehriger/rsync-s3/browser:latest
     container_name: rsync-s3-browser
     environment:
       - S3_ENDPOINT=http://s3-gateway:9000

@@ -13,6 +13,17 @@ from .s3_client import S3Client, get_s3_client
 from .sftp_client import SFTPClient, SnapshotInfo, get_sftp_client
 
 
+def _normalize_datetime(dt: Optional[datetime]) -> Optional[datetime]:
+    """Normalize datetime to seconds precision for comparison.
+    
+    S3 returns datetimes with microseconds, SFTP returns integer seconds.
+    Truncate to seconds to ensure proper comparison.
+    """
+    if dt is None:
+        return None
+    return dt.replace(microsecond=0)
+
+
 class VersionSource(str, Enum):
     """Source of an object version."""
 
@@ -111,14 +122,17 @@ class VersionMapper:
         unique_versions: list[VersionInfo] = []
         seen_signatures: set[tuple[int, Optional[datetime]]] = set()
         
-        # First, determine current version's signature
+        # First, determine current version's signature (normalized to seconds)
         current_signature: Optional[tuple[int, Optional[datetime]]] = None
         if current_version:
-            current_signature = (current_version.size, current_version.modified_time)
+            current_signature = (
+                current_version.size,
+                _normalize_datetime(current_version.modified_time),
+            )
 
         # Process snapshots oldest-first, keeping first occurrence of each unique version
         for version in snapshot_versions:
-            signature = (version.size, version.modified_time)
+            signature = (version.size, _normalize_datetime(version.modified_time))
             
             # Skip if we've seen this version before
             if signature in seen_signatures:
