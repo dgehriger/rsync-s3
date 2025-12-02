@@ -26,9 +26,7 @@ services:
 
   # Caddy - Automatic HTTPS proxy for S3 gateway (Cloudflare DNS challenge)
   caddy:
-    build:
-      context: ./caddy
-      dockerfile: Dockerfile
+    image: ghcr.io/dgehriger/rsync-s3/caddy:latest
     container_name: rsync-s3-caddy
     environment:
       - S3_DOMAIN=${S3_DOMAIN:-s3.example.com}
@@ -44,15 +42,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 128M
     networks:
       - rsync-net
 
   # Snapshot-Aware Browser - FastAPI application
   browser:
-    build:
-      context: ./browser
-      dockerfile: Dockerfile
+    image: ghcr.io/dgehriger/rsync-s3/browser:latest
     container_name: rsync-s3-browser
     environment:
       - S3_ENDPOINT=http://s3-gateway:9000
