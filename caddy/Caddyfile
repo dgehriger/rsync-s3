@@ -8,7 +8,22 @@
         dns cloudflare {env.CLOUDFLARE_API_TOKEN}
     }
     
-    reverse_proxy s3-gateway:9000
+    reverse_proxy s3-gateway:9000 {
+        # Flush immediately to avoid buffering issues with chunked uploads
+        flush_interval -1
+        
+        # Pass through headers properly
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        
+        # Transport settings for proper streaming
+        transport http {
+            read_buffer 0
+            write_buffer 0
+        }
+    }
     
     request_body {
         max_size 0
