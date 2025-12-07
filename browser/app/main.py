@@ -15,7 +15,12 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .config import Settings, get_settings
+from .config import (
+    Settings,
+    get_settings,
+    get_remote_config,
+    load_remote_config_from_sftp,
+)
 from .s3_client import S3Client, get_s3_client
 from .sftp_client import SFTPClient, get_sftp_client
 from .version_mapper import VersionMapper, get_version_mapper
@@ -151,11 +156,19 @@ async def list_buckets_page(
     request: Request,
     username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
+    sftp_client: SFTPClient = Depends(get_sftp_client),
 ):
     """List all buckets page."""
     try:
+        # Load remote config if not already loaded
+        remote_config = await load_remote_config_from_sftp(sftp_client)
+        
         buckets = await s3_client.list_buckets()
-        logger.info(f"Listed {len(buckets)} buckets")
+        
+        # Filter buckets based on remote configuration
+        buckets = remote_config.filter_buckets(buckets)
+        
+        logger.info(f"Listed {len(buckets)} buckets (after filtering)")
         return templates.TemplateResponse(
             "buckets.html",
             {
@@ -174,13 +187,38 @@ async def list_objects_page(
     request: Request,
     bucket: str,
     prefix: str = Query("", description="Object prefix"),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(None, description="Items per page (20, 50, or 100)"),
     username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
+    settings: Settings = Depends(get_settings),
 ):
-    """List objects in a bucket page."""
+    """List objects in a bucket page with pagination."""
     try:
+        # Validate and set per_page
+        valid_page_sizes = settings.page_size_options
+        if per_page is None or per_page not in valid_page_sizes:
+            per_page = settings.default_page_size
+        
         result = await s3_client.list_objects(bucket, prefix)
         breadcrumbs = build_breadcrumbs(bucket, prefix)
+        
+        # Combine folders and files for pagination
+        all_items = result["folders"] + result["files"]
+        total_items = len(all_items)
+        total_pages = max(1, (total_items + per_page - 1) // per_page)
+        
+        # Ensure page is within bounds
+        page = min(page, total_pages)
+        
+        # Paginate
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paginated_items = all_items[start_idx:end_idx]
+        
+        # Split back into folders and files
+        paginated_folders = [item for item in paginated_items if item.get("type") == "folder"]
+        paginated_files = [item for item in paginated_items if item.get("type") == "file"]
 
         return templates.TemplateResponse(
             "objects.html",
@@ -188,10 +226,18 @@ async def list_objects_page(
                 "request": request,
                 "bucket": bucket,
                 "prefix": prefix,
-                "folders": result["folders"],
-                "files": result["files"],
+                "folders": paginated_folders,
+                "files": paginated_files,
                 "breadcrumbs": breadcrumbs,
                 "username": username,
+                # Pagination context
+                "page": page,
+                "per_page": per_page,
+                "total_items": total_items,
+                "total_pages": total_pages,
+                "page_size_options": valid_page_sizes,
+                "total_folders": len(result["folders"]),
+                "total_files": len(result["files"]),
             },
         )
     except Exception as e:
@@ -317,10 +363,18 @@ async def object_detail_page(
 async def api_list_buckets(
     username: str = Depends(get_current_user),
     s3_client: S3Client = Depends(get_s3_client),
+    sftp_client: SFTPClient = Depends(get_sftp_client),
 ):
     """JSON API: List all buckets."""
     try:
+        # Load remote config if not already loaded
+        remote_config = await load_remote_config_from_sftp(sftp_client)
+        
         buckets = await s3_client.list_buckets()
+        
+        # Filter buckets based on remote configuration
+        buckets = remote_config.filter_buckets(buckets)
+        
         return {"buckets": buckets}
     except Exception as e:
         logger.error(f"API Error listing buckets: {e}")

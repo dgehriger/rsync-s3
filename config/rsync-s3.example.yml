@@ -1,0 +1,23 @@
+# Rsync.net S3 Browser Configuration
+# 
+# Place this file at ~/.config/rsync-s3/rsync-s3.yml on your rsync.net server.
+# The browser will read this configuration via SFTP on startup.
+#
+# Example:
+#   ssh user@usw-s123.rsync.net "mkdir -p .config/rsync-s3"
+#   scp rsync-s3.example.yml user@usw-s123.rsync.net:.config/rsync-s3/rsync-s3.yml
+
+# Folders to expose in the browser
+# If set, ONLY these folders will be visible (whitelist mode)
+# Leave empty or omit entirely to show all folders (except hidden ones)
+exposed_folders:
+  - vcpkg
+  # - backups
+  # - projects
+
+# Additional folders to hide from the browser
+# These extend the default hidden folders: .ssh, .zfs, .config
+# hidden_folders:
+#   - tmp
+#   - cache
+#   - downloads

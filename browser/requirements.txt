@@ -17,5 +17,8 @@ asyncssh>=2.14.0,<3.0.0
 # HTTP client (for internal requests)
 httpx>=0.26.0,<1.0.0
 
+# YAML configuration
+pyyaml>=6.0.0,<7.0.0
+
 # Utilities
 python-multipart>=0.0.6,<1.0.0

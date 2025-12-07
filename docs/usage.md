@@ -2,6 +2,45 @@
 
 This guide explains how to use the Rsync.net S3 Gateway and Snapshot-Aware Browser.
 
+## Configuration
+
+### Remote Configuration File
+
+Create a configuration file on your rsync.net server at `~/.config/rsync-s3/rsync-s3.yml` to control which folders are exposed in the browser:
+
+```yaml
+# ~/.config/rsync-s3/rsync-s3.yml
+# Remote configuration for Rsync.net S3 Browser
+
+# Folders to expose (if set, ONLY these folders are shown)
+# Leave empty or omit to show all folders (except hidden ones)
+exposed_folders:
+  - vcpkg
+  - backups
+  - projects
+
+# Additional folders to hide (extends defaults: .ssh, .zfs, .config)
+hidden_folders:
+  - tmp
+  - cache
+```
+
+**Configuration options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `exposed_folders` | List of folders to show. If set, only these are visible | `[]` (show all) |
+| `hidden_folders` | Additional folders to hide | `[".ssh", ".zfs", ".config"]` |
+
+**Example: Show only vcpkg folder:**
+
+```yaml
+exposed_folders:
+  - vcpkg
+```
+
+The config file is read via SFTP when the browser starts. If the file doesn't exist, all folders are shown (except the default hidden ones).
+
 ## Web Browser Interface
 
 ### Accessing the UI
@@ -16,6 +55,7 @@ The home page displays all S3 buckets (directories under `~/s3root`):
 
 - Click a bucket name to view its contents
 - Buckets show creation date when available
+- Buckets are filtered based on your remote configuration
 
 ### Browsing Objects
 
@@ -26,6 +66,15 @@ Inside a bucket, you'll see:
 - **Actions**: "Details" for version history, "Download" for quick download
 
 Use the breadcrumb navigation at the top to go back to parent folders.
+
+### Pagination
+
+When browsing folders with many items:
+
+- Use the **"Per page"** dropdown to select 20, 50, or 100 items per page
+- Navigate between pages using the **pagination controls** at the bottom
+- The item count shows your current position (e.g., "Showing 1-20 of 150 items")
+- Your per-page preference is preserved when navigating into subfolders
 
 ### Viewing Version History
 

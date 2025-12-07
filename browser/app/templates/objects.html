@@ -23,10 +23,25 @@
                 🗄️ {{ bucket }}
             {% endif %}
         </h1>
-        <span class="text-muted">{{ folders|length }} folder(s), {{ files|length }} file(s)</span>
+        <span class="text-muted">{{ total_folders }} folder(s), {{ total_files }} file(s)</span>
     </div>
 
     {% if folders or files %}
+    <!-- Pagination Controls (Top) -->
+    <div class="pagination-controls">
+        <div class="pagination-info">
+            Showing {{ ((page - 1) * per_page) + 1 }}-{{ [page * per_page, total_items]|min }} of {{ total_items }} items
+        </div>
+        <div class="pagination-options">
+            <label for="per-page-select">Per page:</label>
+            <select id="per-page-select" onchange="changePerPage(this.value)">
+                {% for size in page_size_options %}
+                <option value="{{ size }}" {% if size == per_page %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
     <table>
         <thead>
             <tr>
@@ -41,12 +56,12 @@
             <tr>
                 <td>
                     <span class="icon folder-icon"></span>
-                    <a href="/b/{{ bucket }}?prefix={{ folder.prefix }}">{{ folder.name }}/</a>
+                    <a href="/b/{{ bucket }}?prefix={{ folder.prefix }}&per_page={{ per_page }}">{{ folder.name }}/</a>
                 </td>
                 <td class="text-muted">-</td>
                 <td class="text-muted">-</td>
                 <td class="text-right">
-                    <a href="/b/{{ bucket }}?prefix={{ folder.prefix }}" class="btn btn-secondary">Open</a>
+                    <a href="/b/{{ bucket }}?prefix={{ folder.prefix }}&per_page={{ per_page }}" class="btn btn-secondary">Open</a>
                 </td>
             </tr>
             {% endfor %}
@@ -72,6 +87,30 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <!-- Pagination Navigation (Bottom) -->
+    {% if total_pages > 1 %}
+    <div class="pagination-nav">
+        {% if page > 1 %}
+        <a href="/b/{{ bucket }}?prefix={{ prefix }}&page=1&per_page={{ per_page }}" class="btn btn-secondary">« First</a>
+        <a href="/b/{{ bucket }}?prefix={{ prefix }}&page={{ page - 1 }}&per_page={{ per_page }}" class="btn btn-secondary">‹ Prev</a>
+        {% else %}
+        <span class="btn btn-secondary disabled">« First</span>
+        <span class="btn btn-secondary disabled">‹ Prev</span>
+        {% endif %}
+
+        <span class="pagination-current">Page {{ page }} of {{ total_pages }}</span>
+
+        {% if page < total_pages %}
+        <a href="/b/{{ bucket }}?prefix={{ prefix }}&page={{ page + 1 }}&per_page={{ per_page }}" class="btn btn-secondary">Next ›</a>
+        <a href="/b/{{ bucket }}?prefix={{ prefix }}&page={{ total_pages }}&per_page={{ per_page }}" class="btn btn-secondary">Last »</a>
+        {% else %}
+        <span class="btn btn-secondary disabled">Next ›</span>
+        <span class="btn btn-secondary disabled">Last »</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% else %}
     <div class="empty-state">
         <div class="icon">📂</div>
@@ -80,4 +119,76 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .pagination-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 15px;
+        background-color: var(--bg-color);
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 0;
+    }
+
+    .pagination-info {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+
+    .pagination-options {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .pagination-options label {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+
+    .pagination-options select {
+        padding: 6px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background-color: var(--card-bg);
+        color: var(--text-color);
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+
+    .pagination-nav {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        padding: 15px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .pagination-current {
+        padding: 8px 16px;
+        color: var(--text-color);
+        font-weight: 500;
+    }
+
+    .btn.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function changePerPage(value) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('per_page', value);
+        url.searchParams.set('page', '1');  // Reset to first page
+        window.location.href = url.toString();
+    }
+</script>
 {% endblock %}
